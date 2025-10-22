@@ -1,7 +1,7 @@
 /************************************************************
 **-----------------------------------------------------------
 ** file name        : led_flash
-** usage            : 0.2频率闪光灯
+** usage            : 0.2s周期闪光灯
 **-----------------------------------------------------------
 ************************************************************/
 module led_flash( 
@@ -14,7 +14,7 @@ module led_flash(
 
 localparam LED_PREIOD = 24'd9_999_999;       //led preiod / 2
 
-reg     [23:0]      cnt;        //0.1s counter, unit :1ns
+reg     [23:0]      cnt;        //0.1s counter, unit :1ns 
 
 always @(posedge sys_clk or negedge rst_n )begin
     if(!rst_n)
@@ -23,10 +23,10 @@ always @(posedge sys_clk or negedge rst_n )begin
         cnt <= cnt + 1'b0;
     else
         cnt <= 24'd0;
-    
 end
 
-always @(posedge sys_clk or rst_n)begin
+
+always @(posedge sys_clk or negedge rst_n)begin
     if(!rst_n)
         led[3:0] = 4'b0;
     else if(vaild) begin
@@ -37,7 +37,7 @@ always @(posedge sys_clk or rst_n)begin
             led[3] <= ~led[3];
        end
     end
-    else led[3:0] = 4'b0;   
+    else led[3:0] <= 4'b0;   
 end
 
 endmodule
