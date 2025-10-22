@@ -7,7 +7,7 @@
 module led_breath( 
     input sys_clk   ,                   //50mHz, system clock
     input rst_n     ,                   //reset sign ,1 then reset
-    input vaild     ,                   //vaild sign ,1 then led begin flash
+    input valid     ,                   //vaild sign ,1 then led begin breath
     
     output  reg [3:0]   led            //led output
  );
@@ -20,7 +20,7 @@ reg     flag;                             // circle_cnt direction sign
 always @(posedge sys_clk or negedge rst_n )begin
     if(!rst_n)
         cnt <= 16'd0;
-    else if (vaild) begin  
+    else if (valid) begin  
         if (cnt < LED_PREIOD)
             cnt <= cnt + 1'b1;
         else
@@ -34,7 +34,7 @@ always @(posedge sys_clk or negedge rst_n )begin
     //changing per 0.001s, make led like breath
     if(!rst_n)
         led <= 4'b0;
-    else if (vaild)
+    else if (valid)
         led <= (cnt >= circle_cnt)? 4'b1111 : 4'b0000;
     else
         led <= 4'b0;
@@ -46,7 +46,7 @@ always @(posedge sys_clk or negedge rst_n )begin
         circle_cnt <= 16'b0;
     end
     
-    else if(vaild)begin
+    else if(valid)begin
     
         //changing per 0.001s
         if(cnt == LED_PREIOD)begin

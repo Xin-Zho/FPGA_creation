@@ -7,7 +7,7 @@
 module led_run( 
     input sys_clk   ,                   //50mHz, system clock
     input rst_n     ,                   //reset sign ,1 then reset
-    input vaild     ,                   //vaild sign ,1 then led begin flash
+    input valid     ,                   //vaild sign ,1 then led begin run
     
     output  reg  [3:0]   led            //led output
  );
@@ -21,7 +21,7 @@ reg     [1:0]       led_state ;
 always @(posedge sys_clk or negedge rst_n )begin
     if(!rst_n)
         cnt <= 24'd0;
-    else if(vaild)begin
+    else if(valid)begin
         if (cnt < LED_PREIOD)
             cnt <= cnt + 1'b1;
         else
@@ -34,7 +34,7 @@ end
 always @(posedge sys_clk or negedge rst_n )begin
     if(!rst_n)
         led_state <= 2'd0;
-    else if (vaild)begin
+    else if (valid)begin
         if (cnt == LED_PREIOD )
             led_state <= led_state + 1'b1;
         else 
@@ -48,7 +48,7 @@ end
 always @(posedge sys_clk or negedge rst_n)begin
     if(!rst_n)
         led[3:0] <= 4'b0;
-    else if(vaild) begin
+    else if(valid) begin
         case (led_state)
             2'b00: led <= 4'b1000;
             2'b01: led <= 4'b0100;
