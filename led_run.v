@@ -5,24 +5,28 @@
 **-----------------------------------------------------------
 ************************************************************/
 module led_run( 
-    input sys_clk   ,                   //50Hz, system clock
+    input sys_clk   ,                   //50mHz, system clock
     input rst_n     ,                   //reset sign ,1 then reset
     input vaild     ,                   //vaild sign ,1 then led begin flash
     
     output  reg  [3:0]   led            //led output
  );
 
-localparam LED_PREIOD = 24'd9_999_999;       //led preiod / 8
+localparam LED_PREIOD = 24'd9_999_999;       //led preiod / 4
 
-reg     [23:0]      cnt;        //0.1s counter, unit :1ns
+reg     [23:0]      cnt;        //0.2s counter, unit :1ns
 
 reg     [1:0]       led_state ; 
 
 always @(posedge sys_clk or negedge rst_n )begin
     if(!rst_n)
         cnt <= 24'd0;
-    else if (cnt < LED_PREIOD)
-        cnt <= cnt + 1'b1;
+    else if(vaild)begin
+        if (cnt < LED_PREIOD)
+            cnt <= cnt + 1'b1;
+        else
+            cnt <= 24'd0;
+    end
     else
         cnt <= 24'd0;
 end
