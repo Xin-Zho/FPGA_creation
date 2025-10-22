@@ -20,7 +20,7 @@ always @(posedge sys_clk or negedge rst_n )begin
     if(!rst_n)
         cnt <= 24'd0;
     else if (cnt < LED_PREIOD)
-        cnt <= cnt + 1'b0;
+        cnt <= cnt + 1'b1;
     else
         cnt <= 24'd0;
 end
@@ -28,7 +28,7 @@ end
 
 always @(posedge sys_clk or negedge rst_n)begin
     if(!rst_n)
-        led[3:0] = 4'b0;
+        led[3:0] = 4'b0000;
     else if(vaild) begin
         if(cnt == LED_PREIOD)begin
             led[0] <= ~led[0];
@@ -37,7 +37,7 @@ always @(posedge sys_clk or negedge rst_n)begin
             led[3] <= ~led[3];
        end
     end
-    else led[3:0] <= 4'b0;   
+    else led[3:0] <= 4'b0000;   
 end
 
 endmodule
