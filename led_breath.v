@@ -12,7 +12,7 @@ module led_breath(
     output  reg [3:0]   led            //led output
  );
 
-localparam LED_PREIOD = 16'd49_999;       // led preiod / 20
+localparam LED_PREIOD = 16'd50_000;       // led preiod / 20
 reg     [15:0]      cnt;                  // 0.001s counter, unit :1ns, 
 reg     [15:0]      circle_cnt;           // 0.02s  conuter, unit :(+25 unit)/0.001s, until 2_000_000_000 unit 
 reg     flag;                             // circle_cnt direction sign
@@ -21,7 +21,7 @@ always @(posedge sys_clk or negedge rst_n )begin
     if(!rst_n)
         cnt <= 16'd0;
     else if (valid) begin  
-        if (cnt < LED_PREIOD)
+        if (cnt <= LED_PREIOD)
             cnt <= cnt + 1'b1;
         else
             cnt <= 16'd0;
@@ -61,7 +61,7 @@ always @(posedge sys_clk or negedge rst_n )begin
             end
             else begin//decrease
             
-                if(circle_cnt == LED_PREIOD)
+                if(circle_cnt == 16'b0)
                     flag <= ~flag;//reserve
                 else
                     circle_cnt <= circle_cnt - 5'd25;
