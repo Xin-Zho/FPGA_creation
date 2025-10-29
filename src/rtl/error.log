@@ -1,6 +1,0 @@
-TypeError: Cannot read properties of undefined (reading 'send')
-    at Object.t.computingStop (D:\123云盘\123pan\resources\app.asar\el\main\index.js:5:861071)
-    at PowerMonitor.<anonymous> (D:\123云盘\123pan\resources\app.asar\el\main\index.js:8:545757)
-    at PowerMonitor.emit (node:events:390:28)
-    at PowerMonitor.emit (node:domain:475:12)
-    at PowerMonitor.e.emit (D:\123云盘\123pan\resources\app.asar\el\main\index.js:8:64096)
