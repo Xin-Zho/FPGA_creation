@@ -251,7 +251,7 @@ assign      cmd_in = eth_tx_data;
 wire cmd_finish ;
 
 //cmd发射器
-state_sender cmd_sender(
+state_sender sender_cmd(
      // 系统接口
     .clk_50          (sys_clk),         // 50MHz系统时钟输入
     .sys_rst_n       (sys_rst_n),      // 全局复位，低电平有效

@@ -3,7 +3,7 @@
 // UDP回环模式定义
 `define UDP_LOOP_BACK
 
-module ethernet_trans(
+module ethernet_trans_control(
     // 系统时钟和复位
     input  clk_50,           // 50MHz系统时钟
     input  sys_rst_n,        // 系统复位信号，低电平有效
@@ -106,7 +106,7 @@ end
 wire phy1_rgmii_rx_clk_0;   // RGMII接收时钟0度
 wire phy1_rgmii_rx_clk_90;  // RGMII接收时钟90度
 
-rx_pll u_rx_pll(
+rx_pll clk_rx_pll(
     .refclk     (phy1_rgmii_rx_clk),  // 参考时钟
     .reset      (1'b0),               // 复位
     .clk0_out   (phy1_rgmii_rx_clk_0), // 0度时钟输出
@@ -123,7 +123,7 @@ wire               clk_1_25_out;          // 1.25MHz时钟输出
 wire               clk_50_out;            // 25MHz时钟输出 ？
 
 clk_gen_rst_gen #(.DEVICE (DEVICE)  // 设备类型参数
-    ) u_clk_gen (
+    ) clk_eth_gen (
     .reset         (~key1),        // 复位输入
     .clk_in        (clk_50),       // 时钟输入
     .rst_out       (reset_reg),    // 复位输出
@@ -145,7 +145,7 @@ assign TRI_speed = 2'b10;//千兆2'b10 百兆2'b01 十兆2'b00
  
 udp_clk_gen #(
     .DEVICE (DEVICE)  // 设备类型参数
-) u5_temac_clk_gen (           
+)   clk_temac_gen (           
     .reset                (~key1),          // 复位
     .tri_speed            (TRI_speed),      // 三速设置
     .clk_125_in           (clk_125_out),    // 125MHz时钟输入
@@ -206,7 +206,7 @@ assign mac_cfg_vector = {1'b0, 2'b00, TRI_speed, 8'b00000010, 7'b0000010};//地�
 
 //TEMAC模块 
 temac_block #(.DEVICE (DEVICE)  // 设备类型参数
-    ) u4_trimac_block (
+    ) trans_TEMAC (
     //全局
     .reset                (reset),                   // 复位
     .gtx_clk              (clk_125_out),            // 全局发送时钟125MHz
@@ -280,7 +280,7 @@ wire               temac_rx_eof;          // TEMAC接收帧结束
 
 tx_client_fifo #(
     .DEVICE (DEVICE)  // 设备类型参数
-) u6_tx_fifo (
+) trans_tx_fifo (
     .rd_clk               (tx_clk_int),         // 读时钟
     .rd_sreset            (reset),             // 读同步复位
     .rd_enable            (tx_clk_en_int),      // 读使能
@@ -303,7 +303,7 @@ tx_client_fifo #(
 
 rx_client_fifo #(
     .DEVICE (DEVICE)  // 设备类型参数
-) u7_rx_fifo (                           
+) trans_rx_fifo (                           
     .wr_clk               (rx_clk_int),         // 写时钟
     .wr_enable            (rx_clk_en_int),      // 写使能
     .wr_sreset            (reset),             // 写同步复位
@@ -396,17 +396,17 @@ always @(posedge udp_clk or posedge reset) begin
 end
 
 // UDP应用层接口信号
-wire               app_rx_data_valid;     // 应用层接收数据有效
-wire [7:0]         app_rx_data;           // 应用层接收数据
-wire [15:0]        app_rx_data_length;    // 应用层接收数据长度
-wire [15:0]        app_rx_port_num;       // 应用层接收端口号
+//wire               app_rx_data_valid;     // 应用层接收数据有效
+//wire [7:0]         app_rx_data;           // 应用层接收数据
+//wire [15:0]        app_rx_data_length;    // 应用层接收数据长度
+//wire [15:0]        app_rx_port_num;       // 应用层接收端口号
 
-wire               udp_tx_ready;          // UDP发送就绪
-wire               app_tx_ack;            // 应用层发送应答
-wire               app_tx_data_request;   // 应用层发送数据请求
-wire               app_tx_data_valid;     // 应用层发送数据有效
-wire [7:0]         app_tx_data;           // 应用层发送数据
-wire [15:0]        udp_data_length;       // UDP数据长度
+//wire               udp_tx_ready;          // UDP发送就绪
+//wire               app_tx_ack;            // 应用层发送应答
+//wire               app_tx_data_request;   // 应用层发送数据请求
+//wire               app_tx_data_valid;     // 应用层发送数据有效
+//wire [7:0]         app_tx_data;           // 应用层发送数据
+//wire [15:0]        udp_data_length;       // UDP数据长度
 
 //UDP/IP协议栈
 udp_ip_protocol_stack #(
@@ -415,7 +415,7 @@ udp_ip_protocol_stack #(
     .LOCAL_IP_ADDRESS       (LOCAL_IP_ADDRESS),        // 本地IP地址
     .LOCAL_MAC_ADDRESS      (LOCAL_MAC_ADDRESS)        // 本地MAC地址
 ) 
-    u3_udp_ip_protocol_stack (   
+    trans_udp_ip_stack (   
     .udp_rx_clk                 (udp_clk),                      // UDP接收时钟
     .udp_tx_clk                 (udp_clk),                      // UDP发送时钟
     .reset                      (reset),                       // 复位

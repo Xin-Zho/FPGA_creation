@@ -117,7 +117,7 @@ end
 
 
 // ========================= 以太网传输模块实例化 =========================
-ethernet_trans u_ethernet_trans (
+ethernet_trans_control trans_ethernet (
     // 系统时钟和复位
     .clk_50              (clk_50),
     .sys_rst_n           (sys_rst_n),
