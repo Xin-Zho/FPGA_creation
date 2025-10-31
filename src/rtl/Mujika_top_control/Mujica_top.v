@@ -7,6 +7,7 @@ module Mujica_top(
     input wire start_power,      // 开始开机，高电平有效
     input wire start_save,       // 开始存照片，高电平有效
     input wire start_fetch,      // 开始读照片，高电平有效
+    input wire key1,             // 切换照片的接口   
     input wire finish_fetch,     // 结束读照片，高电平有效
     
     // PHY1 RGMII接口信号
@@ -17,10 +18,16 @@ module Mujica_top(
     output wire         phy1_rgmii_tx_ctl,   // RGMII发送控制
     output wire [3:0]   phy1_rgmii_tx_data,  // RGMII发送数据
     
-    output [2:0]        led                  // LED状态指示
+    output [2:0]        led,                  // LED状态指示
     
+    
+    //开始更改
     // SD 接口信号
-    
+    output                      sd_ncs,
+    output                      sd_dclk,
+    output                      sd_mosi,
+    input                       sd_miso
+    //更改结束
 );
 
 // 状态定义
@@ -77,15 +84,37 @@ always@(posedge finish_fetch,sys_clk or negedge rst_n )begin
     
         return_idle <= 1'b0;
         
-    else if(current_state == IDLE_STATUS )begin
+    else if(current_state == SNAP_FETCH_WORK )begin
   
-        if (finish_fetch)
+        if (finish_fetch && ~send_working)
             return_idle <= 1'b1;
          
     end       
     else
         //非读取状态忽略所有输入
         return_idle <= 1'b0;
+end
+
+reg change_pic;
+wire key1;
+assign key1 = change_pic;
+ 
+ always@(posedge start_fetch,sys_clk or negedge rst_n )begin
+    if(!rst_n )
+    
+        change_pic <= 1'b0;
+        
+    else if(current_state == SNAP_FETCH_WORK )begin
+    
+        if (send_working)
+            change_pic <= 1'b0;
+        else if(start_fetch)
+            change_pic <= 1'b1;
+         
+    end       
+    else
+        //非读取状态忽略所有输入
+         change_pic <= 1'b0;
 end
 
 //=======================状态选择===========================
@@ -215,10 +244,14 @@ always @(posedge sys_clk or negedge rst_n) begin
             end
             
             SNAP_FETCH_WORK: begin
-                eth_tx_pic_en <= 1'b1;     // 使能发送传出照片
+            
+                if(change_pic)begin
+                    eth_tx_pic_en <= 1'b1;     // 使能发送传出照片
+                    send_working <= 1'b1;
+                end 
+                
                 eth_tx_en <= 1'b0;
                 
-                send_working <= 1'b1;
             end
             
             //没用，IDLE_STATUS就是默认的
@@ -279,12 +312,49 @@ assign  pic_trans_vaild = eth_tx_pic_en;
 wire pic_finish ;
 
 //pic发射器控制器
-//picture_sender pic_sender(
+
+//To 毛毛虫：在此实现sd，sdram，udp的连接
+//如果你对接口有任何疑问请询问我
+//top,发送，loop
+//进行封装
+// ==============================
+// BMP传输封装模块实例化
+// ==============================
+
+// 状态信号
+wire transfer_busy;
+wire transfer_done;
+wire [3:0] status_code;
+
+bmp_transfer_wrapper bmp_wrapper_inst(
+    // 系统接口
+    .sys_clk                (sys_clk),
+    .rst_n                  (rst_n),
     
-//    //To 毛毛虫：在此实现sd，sdram，udp的连接
-//    //如果你对接口有任何疑问请询问我
+    // 控制接口
+    .start_transfer         (key1),              // 使用key1触发所有功能
+    .transfer_busy          (transfer_busy),
+    .transfer_done          (transfer_done),
+    .status_code            (status_code),
     
-//);
+    // 物理层接口
+    .phy1_rgmii_rx_clk      (phy1_rgmii_rx_clk),
+    .phy1_rgmii_rx_ctl      (phy1_rgmii_rx_ctl),
+    .phy1_rgmii_rx_data     (phy1_rgmii_rx_data),
+    .phy1_rgmii_tx_clk      (phy1_rgmii_tx_clk),
+    .phy1_rgmii_tx_ctl      (phy1_rgmii_tx_ctl),
+    .phy1_rgmii_tx_data     (phy1_rgmii_tx_data),
+    
+    // SD卡接口
+    .sd_ncs                 (sd_ncs),
+    .sd_dclk                (sd_dclk),
+    .sd_mosi                (sd_mosi),
+    .sd_miso                (sd_miso)
+);
+
+// 图片传输完成信号
+assign pic_finish = transfer_done;
+//封装结束
 
 
 //记录输出状态

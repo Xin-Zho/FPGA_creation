@@ -1,271 +1,200 @@
 module top(
-	input                       clk,
-	input                       rst_n,
+    input                       clk,
+    input                       rst_n,
+    input                       key1,
     
+    // SD卡接口
+    output                      sd_ncs,            // SD卡片选 (SPI模式)
+    output                      sd_dclk,           // SD卡时钟
+    output                      sd_mosi,           // SD卡控制器数据输出
+    input                       sd_miso,           // SD卡控制器数据输入
     
-    
-	input                       key1,
-    
-    
-    
-	output [5:0]                seg_sel,
-	output [7:0]                seg_data,	
-    
-    output			vga_out_hs,
-    output			vga_out_vs,
-//    output			vga_out_de,
-    output	[11:0]	vga_data,
-    //hdmi接口                         
-	//HDMI
-	output			HDMI_CLK_P,
-	output			HDMI_D2_P,
-	output			HDMI_D1_P,
-	output			HDMI_D0_P,
-	output                      sd_ncs,            //SD card chip select (SPI mode)
-	output                      sd_dclk,           //SD card clock
-	output                      sd_mosi,           //SD card controller data output
-	input                       sd_miso           //SD card controller data input
+    // UDP以太网接口 
+    input                       eth_app_tx_data_request,
+    output                      eth_app_tx_data_valid,
+    output [7:0]                eth_app_tx_data,
+    output [15:0]               eth_udp_data_length,
+    output                      eth_udp_tx_ready,
+    output                      eth_app_tx_ack
 );
 
-parameter MEM_DATA_BITS         = 32  ;            //external memory user interface data width
-parameter ADDR_BITS             = 21  ;            //external memory user interface address width
-parameter BUSRT_BITS            = 10  ;            //external memory user interface burst width
+// ==============================
+// 参数定义
+// ==============================
+parameter MEM_DATA_BITS  = 32;  // 外部存储器用户接口数据宽度
+parameter ADDR_BITS      = 21;  // 外部存储器用户接口地址宽度
+parameter BUSRT_BITS     = 10;  // 外部存储器用户接口突发宽度
 
-    wire			vga_out_de;
+// ==============================
+// 时钟生成模块
+// ==============================
 
-wire Sdr_init_done;
-wire Sdr_init_ref_vld;
-wire Sdr_busy;
+// 时钟信号定义
+wire                            sd_card_clk;       // SD卡控制器时钟
+wire                            ext_mem_clk;       // 外部存储器时钟
+wire                            ext_mem_clk_sft;   // 外部存储器时钟相移
 
-
-wire                            read_req;
-wire                            read_req_ack;
-wire                            read_en;
-wire                            write_en;
-wire                            write_req;
-wire                            write_req_ack;
-wire                            sd_card_clk;       //SD card controller clock
-wire                            ext_mem_clk;       //external memory clock
-wire                            ext_mem_clk_sft;
-
-wire                            video_clk;         //video pixel clock
-wire							hdmi_5x_clk;
-wire                            hs;
-wire                            vs;
-wire 							de;
-wire[23:0]                      vout_data;
-wire[3:0]                       state_code;
-wire[6:0]                       seg_data_0;
-
-
-wire									  write_clk;
-wire									  read_clk;
-
-wire                            video_read_req;
-wire                            video_read_req_ack;
-wire                            video_read_en;
-wire[31:0]                      video_read_data;
-wire                            sd_card_write_en;
-wire[31:0]                      sd_card_write_data;
-wire                            sd_card_write_req;
-wire                            sd_card_write_req_ack;
-
-wire App_rd_en;
-wire [ADDR_BITS-1:0] App_rd_addr;
-wire Sdr_rd_en;
-wire [MEM_DATA_BITS - 1 : 0]Sdr_rd_dout;
-
-wire App_wr_en;
-wire [ADDR_BITS-1:0] App_wr_addr;
-wire [MEM_DATA_BITS - 1 : 0]App_wr_din;
-wire [3:0] App_wr_dm;
-
-
-wire video_rd_en;
-wire sd_card_wr_en;
-
-
-wire Rd_state_end;
-
-assign vga_out_hs = hs;
-assign vga_out_vs = vs;
-assign vga_out_de = de;
-assign vga_data = {vout_data[23:20],vout_data[15:12],vout_data[7:4]};
-//assign vga_out_r  = vout_data[15:11];
-//assign vga_out_g  = vout_data[10:5];
-//assign vga_out_b  = vout_data[4:0];
-assign sdram_clk = ext_mem_clk;
-//generate SD card controller clock and  SDRAM controller clock
+// SD卡控制器时钟和SDRAM控制器时钟生成
 sys_pll sys_pll_m0(
-	.refclk                     (clk),
-	.clk0_out                   (sd_card_clk),
-	.clk1_out                   (ext_mem_clk),
-    .clk2_out					(ext_mem_clk_sft),
-    .reset						(1'b0)
-    );
-//generate video pixel clock	
-video_pll video_pll_m0(
-	.refclk                     (clk),
-	.clk0_out                   (video_clk),
-    .clk1_out					(hdmi_5x_clk),
-    .reset						(1'b0)
-	);
-	
-//SD card BMP file read
-sd_card_bmp  sd_card_bmp_m0(
-	.clk                        (sd_card_clk              ),
-	.rst                        (~rst_n ),
-	.key                        (key1                     ),
-	.state_code                 (state_code               ),
-	.bmp_width                  (16'd640                 	),  //image width
-	.write_req                  (sd_card_write_req        ),
-	.write_req_ack              (sd_card_write_req_ack    ),
-	.write_en                   (sd_card_write_en         ),
-	.write_data                 (sd_card_write_data       ),
-	.SD_nCS                     (sd_ncs                   ),
-	.SD_DCLK                    (sd_dclk                  ),
-	.SD_MOSI                    (sd_mosi                  ),
-	.SD_MISO                    (sd_miso                  )
+    .refclk                     (clk),              // 参考时钟
+    .clk0_out                   (sd_card_clk),      // SD卡时钟输出
+    .clk1_out                   (ext_mem_clk),      // 外部存储器时钟输出
+    .clk2_out                   (ext_mem_clk_sft),  // 外部存储器时钟相移输出
+    .reset                      (1'b0)              // 复位
 );
 
-//with a digital display of state_code
-// 0:SD card is initializing
-// 1:wait for the button to press
-// 2:looking for the BMP file
-// 3:wait for the fifo
-// 4:reading
-seg_decoder seg_decoder_m0(
-	.bin_data                   (state_code               ),
-	.seg_data                   (seg_data_0               )
+// SDRAM时钟分配
+assign sdram_clk = ext_mem_clk;
+
+// ==============================
+// SD卡BMP文件读取模块
+// ==============================
+
+// SD卡BMP读取状态信号
+wire [3:0]                      state_code;        // 状态指示编码
+
+// SD卡BMP文件读取模块
+sd_card_bmp sd_card_bmp_m0(
+    .clk                        (sd_card_clk),          // SD卡时钟
+    .rst                        (~rst_n),               // 复位信号
+    .key                        (key1),                 // 按键触发
+    .state_code                 (state_code),           // 状态指示编码
+    .bmp_width                  (16'd640),              // 图像宽度
+    
+    // UDP应用层发送接口
+    .app_tx_data_request        (eth_app_tx_data_request),
+    .app_tx_data_valid          (eth_app_tx_data_valid),
+    .app_tx_data                (eth_app_tx_data),
+    .udp_data_length            (eth_udp_data_length),
+    .udp_tx_ready               (eth_udp_tx_ready),
+    .app_tx_ack                 (eth_app_tx_ack),
+    
+    // SD卡接口
+    .SD_nCS                     (sd_ncs),
+    .SD_DCLK                    (sd_dclk),
+    .SD_MOSI                    (sd_mosi),
+    .SD_MISO                    (sd_miso)
 );
 
-seg_scan seg_scan_m0(
-	.clk                        (clk                      ),
-	.rst_n                      (rst_n                    ),
-	.seg_sel                    (seg_sel                  ),
-	.seg_data                   (seg_data                 ),
-	.seg_data_0                 ({1'b1,7'b1111_111}       ),
-	.seg_data_1                 ({1'b1,7'b1111_111}       ),
-	.seg_data_2                 ({1'b1,7'b1111_111}       ),
-	.seg_data_3                 ({1'b1,7'b1111_111}       ),
-	.seg_data_4                 ({1'b1,7'b1111_111}       ),
-	.seg_data_5                 ({1'b1,seg_data_0}        )
-);
-wire hs_0;
-wire vs_0;
-wire de_0;
-video_timing_data video_timing_data_m0
-(
-	.video_clk                  (video_clk                ),
-	.rst                        (~rst_n    ),
-	.read_req                   (video_read_req           ),
-	.read_req_ack               (video_read_req_ack       ),
-	//.read_en                    (video_read_en            ),
-	//.read_data                  (video_read_data          ),
-	.hs                         (hs_0                       ),
-	.vs                         (vs_0                       ),
-	.de                         (de_0                         )
-	//.vout_data                  (vout_data                )
-);
-video_delay video_delay_m0
-(
-    .video_clk                  (video_clk                ),
-	.rst                        (~rst_n    ),
-    .read_en					(video_read_en),
-    .read_data					(video_read_data[31:8]),
-    .hs                         (hs_0                       ),
-	.vs                         (vs_0                       ),
-	.de                         (de_0                         ),
-	.hs_r                       (hs                       ),
-	.vs_r                       (vs                       ),
-	.de_r                       (de                       ),
-	.vout_data					(vout_data)
-);
-hdmi_tx #(.FAMILY("EG4"))	//EF2、EF3、EG4、AL3、PH1
+// ==============================
+// SDRAM控制器模块
+// ==============================
 
- u3_hdmi_tx
-	(
-		.PXLCLK_I(video_clk),
-		.PXLCLK_5X_I(hdmi_5x_clk),
+// SDRAM控制信号定义
+wire                            Sdr_init_done;     // SDRAM初始化完成
+wire                            Sdr_init_ref_vld;  // SDRAM刷新有效
+wire                            Sdr_busy;          // SDRAM忙标志
 
-		.RST_N (rst_n),
-		
-		//VGA
-		.VGA_HS (hs ),
-		.VGA_VS (vs ),
-		.VGA_DE (de ),
-		.VGA_RGB(vout_data),
+// SDRAM应用层接口信号
+wire                            App_rd_en;             // 应用读使能
+wire [ADDR_BITS-1:0]            App_rd_addr;           // 应用读地址
+wire                            Sdr_rd_en;             // SDRAM读使能
+wire [MEM_DATA_BITS-1:0]        Sdr_rd_dout;           // SDRAM读数据
 
-		//HDMI
-		.HDMI_CLK_P(HDMI_CLK_P),
-		.HDMI_D2_P (HDMI_D2_P ),
-		.HDMI_D1_P (HDMI_D1_P ),
-		.HDMI_D0_P (HDMI_D0_P )	
-		
-	);
-//video frame data read-write control
+wire                            App_wr_en;             // 应用写使能
+wire [ADDR_BITS-1:0]            App_wr_addr;           // 应用写地址
+wire [MEM_DATA_BITS-1:0]        App_wr_din;            // 应用写数据
+wire [3:0]                      App_wr_dm;             // 应用数据掩码
+
+// SDRAM控制器模块
+sdram U3(
+    .Clk                        (ext_mem_clk),          // 时钟
+    .Clk_sft                    (ext_mem_clk_sft),      // 时钟相移
+    .Rst                        (~rst_n),               // 复位
+    
+    // SDRAM状态信号
+    .Sdr_init_done              (Sdr_init_done),        // 初始化完成
+    .Sdr_init_ref_vld           (Sdr_init_ref_vld),     // 刷新有效
+    .Sdr_busy                   (Sdr_busy),             // 忙标志
+    
+    // 写接口
+    .App_wr_en                  (App_wr_en),            // 应用写使能
+    .App_wr_addr                (App_wr_addr),          // 应用写地址
+    .App_wr_dm                  (App_wr_dm),            // 应用数据掩码
+    .App_wr_din                 (App_wr_din),           // 应用写数据
+    
+    // 读接口
+    .App_rd_en                  (App_rd_en),            // 应用读使能（数据请求）
+    .App_rd_addr                (App_rd_addr),          // 应用读地址
+    .Sdr_rd_en                  (Sdr_rd_en),            // SDRAM读使能（数据有效）
+    .Sdr_rd_dout                (Sdr_rd_dout)           // SDRAM读数据
+);
+
+// ==============================
+// 视频帧数据读写控制模块
+// ==============================
+
+// 存储器读写控制信号
+wire                            read_req;          // 读请求
+wire                            read_req_ack;      // 读请求应答
+wire                            read_en;           // 读使能
+wire                            write_en;          // 写使能
+wire                            write_req;         // 写请求
+wire                            write_req_ack;     // 写请求应答
+
+wire                            write_clk;         // 写时钟
+wire                            read_clk;          // 读时钟
+
+// SD卡写入信号定义
+wire                            sd_card_write_en;      // SD卡写使能
+wire [31:0]                     sd_card_write_data;    // SD卡写数据
+wire                            sd_card_write_req;     // SD卡写请求
+wire                            sd_card_write_req_ack; // SD卡写请求应答
+
+wire                            video_rd_en;           // 视频读使能
+wire                            sd_card_wr_en;         // SD卡写使能
+
+wire                            Rd_state_end;          // 读状态结束
+
+// 视频帧数据读写控制模块
 frame_read_write frame_read_write_m0(
-    .mem_clk					(ext_mem_clk),
-    .rst						(~rst_n),
-    .Sdr_init_done				(Sdr_init_done),
-    .Sdr_init_ref_vld			(Sdr_init_ref_vld),
-    .Sdr_busy					(Sdr_busy),
+    .mem_clk                    (ext_mem_clk),          // 存储器时钟
+    .rst                        (~rst_n),               // 复位
     
-    .App_rd_en					(App_rd_en),
-    .App_rd_addr				(App_rd_addr),
-    .Sdr_rd_en					(Sdr_rd_en),
-    .Sdr_rd_dout				(Sdr_rd_dout),
+    // SDRAM状态信号
+    .Sdr_init_done              (Sdr_init_done),        // SDRAM初始化完成
+    .Sdr_init_ref_vld           (Sdr_init_ref_vld),     // SDRAM刷新有效
+    .Sdr_busy                   (Sdr_busy),             // SDRAM忙标志
     
-    .read_clk                   (video_clk           ),
-	.read_req                   (video_read_req           ),
-	.read_req_ack               (video_read_req_ack       ),
-	.read_finish                (                   ),
-	.read_addr_0                (24'd0              ), //first frame base address is 0
-	.read_addr_1                (24'd0              ),
-	.read_addr_2                (24'd0              ),
-	.read_addr_3                (24'd0              ),
-	.read_addr_index            (2'd0               ), //use only read_addr_0
-	.read_len                   (24'd307200         ), //frame size//24'd786432
-	.read_en                    (video_read_en            ),
-	.read_data                  (video_read_data          ),
+    // SDRAM读接口
+    .App_rd_en                  (App_rd_en),            // 应用读使能
+    .App_rd_addr                (App_rd_addr),          // 应用读地址
+    .Sdr_rd_en                  (Sdr_rd_en),            // SDRAM读使能
+    .Sdr_rd_dout                (Sdr_rd_dout),          // SDRAM读数据
     
-    .App_wr_en					(App_wr_en),
-    .App_wr_addr				(App_wr_addr),
-    .App_wr_din					(App_wr_din),
-    .App_wr_dm					(App_wr_dm),
+    // 视频读接口（保留接口但实际不使用）
+    .read_clk                   (1'b0),                 // 读时钟（不使用）
+    .read_req                   (1'b0),                 // 读请求（不使用）
+    .read_req_ack               (),                     // 读请求应答
+    .read_finish                (),                     // 读完成
+    .read_addr_0                (24'd0),                // 读地址0
+    .read_addr_1                (24'd0),                // 读地址1
+    .read_addr_2                (24'd0),                // 读地址2
+    .read_addr_3                (24'd0),                // 读地址3
+    .read_addr_index            (2'd0),                 // 读地址索引
+    .read_len                   (24'd0),                // 读长度（不使用）
+    .read_en                    (),                     // 读使能
+    .read_data                  (),                     // 读数据
     
-    .write_clk                  (sd_card_clk        ),
-	.write_req                  (sd_card_write_req        ),
-	.write_req_ack              (sd_card_write_req_ack    ),
-	.write_finish               (                 ),
-	.write_addr_0               (24'd0            ),
-	.write_addr_1               (24'd0            ),
-	.write_addr_2               (24'd0            ),
-	.write_addr_3               (24'd0            ),
-	.write_addr_index           (2'd0             ), //use only write_addr_0
-	.write_len                  (24'd307200       ), //frame size
-	.write_en                   (sd_card_write_en         ),
-	.write_data                 (sd_card_write_data       )
+    // SDRAM写接口
+    .App_wr_en                  (App_wr_en),            // 应用写使能
+    .App_wr_addr                (App_wr_addr),          // 应用写地址
+    .App_wr_din                 (App_wr_din),           // 应用写数据
+    .App_wr_dm                  (App_wr_dm),            // 应用数据掩码
+    
+    // SD卡写接口
+    .write_clk                  (sd_card_clk),          // 写时钟
+    .write_req                  (sd_card_write_req),    // 写请求
+    .write_req_ack              (sd_card_write_req_ack),// 写请求应答
+    .write_finish               (),                     // 写完成
+    .write_addr_0               (24'd0),                // 写地址0
+    .write_addr_1               (24'd0),                // 写地址1
+    .write_addr_2               (24'd0),                // 写地址2
+    .write_addr_3               (24'd0),                // 写地址3
+    .write_addr_index           (2'd0),                 // 写地址索引（仅使用write_addr_0）
+    .write_len                  (24'd307200),           // 写长度（帧大小）
+    .write_en                   (sd_card_write_en),     // 写使能
+    .write_data                 (sd_card_write_data)    // 写数据
 );
 
-sdram U3
-(
-.Clk				(ext_mem_clk),
-.Clk_sft			(ext_mem_clk_sft),
-.Rst				(~rst_n),
-    
-.Sdr_init_done		(Sdr_init_done),
-.Sdr_init_ref_vld	(Sdr_init_ref_vld),
-.Sdr_busy			(Sdr_busy),
-    
-.App_wr_en			(App_wr_en),
-.App_wr_addr		(App_wr_addr),  	
-.App_wr_dm			(App_wr_dm),
-.App_wr_din			(App_wr_din),
-    
-.App_rd_en			(App_rd_en),//data_req
-.App_rd_addr		(App_rd_addr),
-.Sdr_rd_en			(Sdr_rd_en),//data_valid
-.Sdr_rd_dout		(Sdr_rd_dout)
-);
-endmodule 
+endmodule
