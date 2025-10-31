@@ -7,7 +7,6 @@ module Mujica_top(
     input wire start_power,      // 开始开机，高电平有效
     input wire start_save,       // 开始存照片，高电平有效
     input wire start_fetch,      // 开始读照片，高电平有效
-    input wire key1,             // 切换照片的接口   
     input wire finish_fetch,     // 结束读照片，高电平有效
     
     // PHY1 RGMII接口信号
@@ -97,7 +96,7 @@ end
 
 reg change_pic;
 wire key1;
-assign key1 = change_pic;
+assign key1 = change_pic |  eth_tx_pic_en;
  
  always@(posedge start_fetch,sys_clk or negedge rst_n )begin
     if(!rst_n )
@@ -106,7 +105,7 @@ assign key1 = change_pic;
         
     else if(current_state == SNAP_FETCH_WORK )begin
     
-        if (send_working)
+        if (send_finish)
             change_pic <= 1'b0;
         else if(start_fetch)
             change_pic <= 1'b1;
@@ -246,10 +245,11 @@ always @(posedge sys_clk or negedge rst_n) begin
             SNAP_FETCH_WORK: begin
             
                 if(change_pic)begin
-                    eth_tx_pic_en <= 1'b1;     // 使能发送传出照片
+                       // 使能发送传出照片
                     send_working <= 1'b1;
                 end 
                 
+                eth_tx_pic_en <= 1'b0;  
                 eth_tx_en <= 1'b0;
                 
             end
@@ -280,36 +280,8 @@ assign  cmd_vaild = eth_tx_en;
 wire [1:0]  cmd_in ;
 assign      cmd_in = eth_tx_data;
 
-//输出状态
-wire cmd_finish ;
-
-//cmd发射器
-state_sender sender_cmd(
-     // 系统接口
-    .clk_50          (sys_clk),         // 50MHz系统时钟输入
-    .sys_rst_n       (sys_rst_n),      // 全局复位，低电平有效
-    
-    // 交互接口
-    .cmd_in          (cmd_in),         // 2位命令输入
-    .cmd_valid       (cmd_vaild),      // 命令有效信号
-    .tx_done         (cmd_finish),        // 发送完成信号输出
-    
-    // PHY1 RGMII接口
-    .phy1_rgmii_rx_clk  (phy1_rgmii_rx_clk),   // RGMII接收时钟输入
-    .phy1_rgmii_rx_ctl  (phy1_rgmii_rx_ctl),   // RGMII接收控制信号输入
-    .phy1_rgmii_rx_data (phy1_rgmii_rx_data),  // RGMII接收数据输入
-    .phy1_rgmii_tx_clk  (phy1_rgmii_tx_clk),   // RGMII发送时钟输出
-    .phy1_rgmii_tx_ctl  (phy1_rgmii_tx_ctl),   // RGMII发送控制信号输出
-    .phy1_rgmii_tx_data (phy1_rgmii_tx_data)   // RGMII发送数据输出
-);
-
 //pic
 //输入状态
-wire    pic_trans_vaild;
-assign  pic_trans_vaild = eth_tx_pic_en;
-
-//输出状态
-wire pic_finish ;
 
 //pic发射器控制器
 
@@ -330,6 +302,9 @@ bmp_transfer_wrapper bmp_wrapper_inst(
     // 系统接口
     .sys_clk                (sys_clk),
     .rst_n                  (rst_n),
+    
+    .cmd_in(cmd_in),         // 2位命令输入
+    .cmd_valid(cmd_valid),      // 命令有效信号（新增）
     
     // 控制接口
     .start_transfer         (key1),              // 使用key1触发所有功能
@@ -352,8 +327,6 @@ bmp_transfer_wrapper bmp_wrapper_inst(
     .sd_miso                (sd_miso)
 );
 
-// 图片传输完成信号
-assign pic_finish = transfer_done;
 //封装结束
 
 
@@ -363,7 +336,7 @@ reg  send_finish;   //发送状态管理器
 always @(posedge sys_clk or negedge rst_n)begin
     if (!rst_n)
         send_finish <= 1'b0;
-    else if(cmd_finish == 1'b1 || pic_finish == 1'b1)
+    else if(transfer_done == 1'b1)
         send_finish <= 1'b1;
     else if(send_finish == 1'b1)
         send_finish <= 1'b0;

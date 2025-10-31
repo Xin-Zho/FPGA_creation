@@ -10,14 +10,20 @@ module state_sender(
     input           cmd_valid,      // 命令有效信号（新增）
     output reg      tx_done,         // 发送完成信号
     
+    input               app_rx_data_valid,     // 应用层接收数据有效
+    input [7:0]         app_rx_data,           // 应用层接收数据
+    input [15:0]        app_rx_data_length,    // 应用层接收数据长度
+    input [15:0]        app_rx_port_num,       // 应用层接收端口号
     
-    // PHY1 RGMII接口信号
-    input               phy1_rgmii_rx_clk,   // RGMII接收时钟
-    input               phy1_rgmii_rx_ctl,   // RGMII接收控制
-    input [3:0]         phy1_rgmii_rx_data,  // RGMII接收数据
-    output wire         phy1_rgmii_tx_clk,   // RGMII发送时钟
-    output wire         phy1_rgmii_tx_ctl,   // RGMII发送控制
-    output wire [3:0]   phy1_rgmii_tx_data   // RGMII发送数据
+    input               udp_tx_ready,          // UDP发送就绪
+    input               app_tx_ack,            // 应用层发送应答
+
+    output               app_tx_data_request,   // 应用层发送数据请求
+    output               app_tx_data_valid,     // 应用层发送数据有效
+    output [7:0]         app_tx_data,           // 应用层发送数据
+    output [15:0]        udp_data_length        // UDP数据长度
+
+    
 );
 
 // ========================= 内部信号定义 =========================
@@ -35,9 +41,17 @@ reg cmd_valid_reg;              // 内部命令有效寄存器
 
 // 发送控制信号
 reg app_tx_data_request_reg;
+assign app_tx_data_request = app_tx_data_request_reg;
+
 reg app_tx_data_valid_reg;
+assign app_tx_data_valid = app_tx_data_valid_reg;
+
 reg [7:0] app_tx_data_reg;
+assign  app_tx_data = app_tx_data_reg;
+
 reg [15:0] udp_data_length_reg;
+assign  udp_data_length = udp_data_length_reg;
+
 
 // 以太网传输模块接口信号
 wire app_rx_data_valid;
@@ -117,37 +131,8 @@ end
 
 
 // ========================= 以太网传输模块实例化 =========================
-ethernet_trans_control trans_ethernet (
-    // 系统时钟和复位
-    .clk_50              (clk_50),
-    .sys_rst_n           (sys_rst_n),
-    
-    // PHY1 RGMII接口信号（连接到实际的PHY芯片）
-    .phy1_rgmii_rx_clk   (phy1_rgmii_rx_clk),        // 根据实际连接
-    .phy1_rgmii_rx_ctl   (phy1_rgmii_rx_ctl),        // 根据实际连接
-    .phy1_rgmii_rx_data  (phy1_rgmii_rx_data),        // 根据实际连接
-    .phy1_rgmii_tx_clk   (phy1_rgmii_tx_clk),            // 输出到PHY
-    .phy1_rgmii_tx_ctl   (phy1_rgmii_tx_ctl),            // 输出到PHY
-    .phy1_rgmii_tx_data  (phy1_rgmii_tx_data),            // 输出到PHY
-    
-    .led                 (),            // LED状态指示（可选）
-    
-    // UDP应用层接口信号 - 连接到本模块的状态机
-    .app_rx_data_valid   (app_rx_data_valid),
-    .app_rx_data         (app_rx_data),
-    .app_rx_data_length  (app_rx_data_length),
-    .app_rx_port_num     (app_rx_port_num),
-    
-    .udp_tx_ready        (udp_tx_ready),
-    .app_tx_ack          (app_tx_ack),
-    
-    .app_tx_data_request (app_tx_data_request_reg),
-    .app_tx_data_valid   (app_tx_data_valid_reg),
-    .app_tx_data         (app_tx_data_reg),
-    .udp_data_length     (udp_data_length_reg)
-    
+
     // 注意：loopback信号已被注释，不需要连接
-);
 
 // ========================= 可选：接收数据处理 =========================
 // 如果需要处理来自下位机的响应，可以添加以下逻辑

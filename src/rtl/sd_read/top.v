@@ -14,8 +14,8 @@ module top(
     output                      eth_app_tx_data_valid,
     output [7:0]                eth_app_tx_data,
     output [15:0]               eth_udp_data_length,
-    output                      eth_udp_tx_ready,
-    output                      eth_app_tx_ack
+    input                       eth_udp_tx_ready,
+    input                       eth_app_tx_ack
 );
 
 // ==============================
