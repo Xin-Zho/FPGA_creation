@@ -77,7 +77,8 @@ wire                udp_tx_ready;
 wire                app_tx_ack;
 
 //状态信号
-wire tx_done ;
+wire transfer_done_1 ;
+wire transfer_done_2 ;
 wire [3:0]          top_state_code;
 wire [3:0]          top_receive_state_code;  // **新增**：接收状态码
 
@@ -89,7 +90,7 @@ assign app_tx_data_valid    = cmd_valid? app2_tx_data_valid      :app1_tx_data_v
 assign app_tx_data          = cmd_valid? app2_tx_data            :app1_tx_data     ;
 assign udp_data_length      = cmd_valid? udp2_data_length        :udp1_data_length    ;
 
-assign transfer_done      = tx_done | pic_done;
+assign transfer_done      = cmd_valid? transfer_done_2:transfer_done_1;
 
 wire                receive_busy_1;
 wire                receive_done_1;
@@ -106,7 +107,6 @@ top your_top_inst(
     .rst_n                      (rst_n),
     .key1                       (start_transfer),    // 发送触发
     .key2                       (start_receive),     // 接收触发
-    .finish                     (pic_done),
     
     // SD卡接口
     .sd_ncs                     (sd_ncs),
@@ -140,7 +140,7 @@ state_sender sender_cmd(
     // 交互接口
     .cmd_in          (cmd_in),         // 2位命令输入
     .cmd_valid       (cmd_valid),      // 命令有效信号
-    .tx_done         (tx_done),        // 发送完成信号输出
+    .tx_done         (transfer_done_2),        // 发送完成信号输出
     
     .app_rx_data_valid   (app_rx_data_valid),
     .app_rx_data         (app_rx_data),
