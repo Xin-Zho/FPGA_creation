@@ -12,11 +12,13 @@ module sd_card_top
 	output           SD_MOSI,                   //SD card controller data output
 	input            SD_MISO,                   //SD card controller data input
 	output           sd_init_done,              //SD card initialization is complete
+    
 	input            sd_sec_read,               //SD card sector read
 	input[31:0]      sd_sec_read_addr,          //SD card sector read address
 	output[7:0]      sd_sec_read_data,          //SD card sector read data
 	output           sd_sec_read_data_valid,    //SD card sector read data valid
 	output           sd_sec_read_end,           //SD card sector read end
+    
 	input            sd_sec_write,              //SD card sector write
 	input[31:0]      sd_sec_write_addr,         //SD card sector write address
 	input[7:0]       sd_sec_write_data,         //SD card sector write data

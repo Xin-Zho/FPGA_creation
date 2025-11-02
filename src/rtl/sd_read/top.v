@@ -1,7 +1,10 @@
 module top(
     input                       clk,
     input                       rst_n,
-    input                       key1,
+    input                       key1,              //传出控制
+    input                       key2,              //接收控制
+    
+    output                      finish,
     
     // SD卡接口
     output                      sd_ncs,            // SD卡片选 (SPI模式)
@@ -15,7 +18,16 @@ module top(
     output [7:0]                eth_app_tx_data,
     output [15:0]               eth_udp_data_length,
     input                       eth_udp_tx_ready,
-    input                       eth_app_tx_ack
+    input                       eth_app_tx_ack,
+    
+    //接收的UDP以太网口
+    output                      eth_app_rx_data_valid,     
+    output [7:0]                eth_app_rx_data,             
+    output [15:0]               eth_app_rx_data_length,    
+    output [15:0]               eth_app_rx_port_num,      
+    
+    // 接收状态输出
+    output [3:0]                receive_state_code 
 );
 
 // ==============================
@@ -52,14 +64,18 @@ assign sdram_clk = ext_mem_clk;
 
 // SD卡BMP读取状态信号
 wire [3:0]                      state_code;        // 状态指示编码
+wire [3:0]                      recv_state_code;    // 接收状态指示编码
 
 // SD卡BMP文件读取模块
 sd_card_bmp sd_card_bmp_m0(
     .clk                        (sd_card_clk),          // SD卡时钟
     .rst                        (~rst_n),               // 复位信号
     .key                        (key1),                 // 按键触发
+    .key2                       (key2),                 // 接收：按键触发
     .state_code                 (state_code),           // 状态指示编码
     .bmp_width                  (16'd640),              // 图像宽度
+    
+    .finish                     (finish),
     
     // UDP应用层发送接口
     .app_tx_data_request        (eth_app_tx_data_request),
@@ -69,12 +85,28 @@ sd_card_bmp sd_card_bmp_m0(
     .udp_tx_ready               (eth_udp_tx_ready),
     .app_tx_ack                 (eth_app_tx_ack),
     
+    // UDP应用层接收接口
+    .app_rx_data_valid          (eth_app_rx_data_valid),    
+    .app_rx_data                (eth_app_rx_data),          
+    .app_rx_data_length         (eth_app_rx_data_length),   
+    .app_rx_port_num            (eth_app_rx_port_num),      
+    
     // SD卡接口
     .SD_nCS                     (sd_ncs),
     .SD_DCLK                    (sd_dclk),
     .SD_MOSI                    (sd_mosi),
-    .SD_MISO                    (sd_miso)
+    .SD_MISO                    (sd_miso),
+    
+    // SD卡写入接口
+    .sd_sec_write               (),                     // 新增：在sd_card_bmp内部连接
+    .sd_sec_write_addr          (),                     // 新增：在sd_card_bmp内部连接  
+    .sd_sec_write_data          (),                     // 新增：在sd_card_bmp内部连接
+    .sd_sec_write_data_req      (),                     // 新增：暂时置0
+    .sd_sec_write_end           ()                      // 新增：暂时置0
 );
+
+//状态码输出选择
+assign receive_state_code = recv_state_code;
 
 // ==============================
 // SDRAM控制器模块

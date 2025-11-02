@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // UDP回环模式定义
-`define UDP_LOOP_BACK
+//`define UDP_LOOP_BACK
 
 module ethernet_trans_control(
     // 系统时钟和复位
@@ -20,6 +20,9 @@ module ethernet_trans_control(
     
     
     // UDP应用层接口信号
+    
+    output               udp_rx_ready,          //UDP接受就绪
+    
     output               app_rx_data_valid,     // 应用层接收数据有效
     output [7:0]         app_rx_data,           // 应用层接收数据
     output [15:0]        app_rx_data_length,    // 应用层接收数据长度
@@ -464,33 +467,6 @@ udp_ip_protocol_stack #(
     .arp_request_no_reply_error ()                            // ARP请求无应答错误
 );
 
-//// ========================= UDP回环模块 =========================
-//udp_loopback #(
-//    .DEVICE(DEVICE)  // 设备类型参数
-//) u2_udp_loopback (
-//    .app_rx_clk             (app_clk),              // 应用层接收时钟-
-//    .app_tx_clk             (udp_clk),              // 应用层发送时钟
-//    .reset                  (reset),                // 复位
-//    .udp_wrusedw            (udp_wrusedw),          // UDP FIFO写使用字数-
-//    `ifdef UDP_LOOP_BACK    
-//    .app_rx_data            (input_data),           // 应用层接收数据（图像数据）-
-//    .app_rx_data_valid      (input_vaild),          // 应用层接收数据有效-
-//    .app_rx_data_length     (16'd3),                // 应用层接收数据长度
-//    /*
-//    `else   
-//    .app_rx_data            (tpg_data),            // 应用层接收数据（测试数据）
-//    .app_rx_data_valid      (tpg_data_valid),      // 应用层接收数据有效
-//    .app_rx_data_length     (tpg_data_udp_length), // 应用层接收数据长度
-//    */
-//    `endif              
-//    .full_flag              (full_flag),           // 写满标志-
-//    .udp_tx_ready           (udp_tx_ready),        // UDP发送就绪
-//    .app_tx_ack             (app_tx_ack),          // 应用层发送应答
-//    .app_tx_data            (app_tx_data),         // 应用层发送数据
-//    .app_tx_data_request    (app_tx_data_request), // 应用层发送数据请求
-//    .app_tx_data_valid      (app_tx_data_valid),   // 应用层发送数据有效
-//    .udp_data_length        (udp_data_length)      // UDP数据长度
-//);
 
 
 endmodule

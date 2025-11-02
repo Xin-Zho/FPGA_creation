@@ -18,6 +18,15 @@ module bmp_transfer_wrapper(
     output [3:0]        status_code,         // 状态码
     
     // ==============================
+    // 接收控制接口
+    // ==============================
+    input               start_receive,       // 开始接收
+    output              receive_busy,        // 接收进行中
+    output              receive_done,        // 接收完成
+    output [3:0]        receive_status,      // 接收状态码
+    
+    
+    // ==============================
     // 物理层接口
     // ==============================
     input               phy1_rgmii_rx_clk,   // RGMII接收时钟
@@ -34,6 +43,7 @@ module bmp_transfer_wrapper(
     output              sd_dclk,
     output              sd_mosi,
     input               sd_miso
+    
 );
 
 // ==============================
@@ -46,33 +56,44 @@ wire                app1_tx_data_valid;
 wire [7:0]          app1_tx_data;
 wire [15:0]         udp1_data_length;
 
-
-
-
 wire                app2_tx_data_request;
 wire                app2_tx_data_valid;
 wire [7:0]          app2_tx_data;
 wire [15:0]         udp2_data_length;
-
-
-
 
 wire                app_tx_data_request;
 wire                app_tx_data_valid;
 wire [7:0]          app_tx_data;
 wire [15:0]         udp_data_length;
 
+// UDP应用层接收信号
+wire                app_rx_data_valid;
+wire [7:0]          app_rx_data;
+wire [15:0]         app_rx_data_length;
+wire [15:0]         app_rx_port_num;
 
+// UDP发送控制信号
+wire                udp_tx_ready;
+wire                app_tx_ack;
+
+//状态信号
+wire tx_done ;
+wire [3:0]          top_state_code;
+wire [3:0]          top_receive_state_code;  // **新增**：接收状态码
+
+//内部复位信号
+wire sys_rst_n = rst_n;             //未定义时钟复位信号（新
 
 assign app_tx_data_request  = cmd_valid? app2_tx_data_request    :app1_tx_data_request   ;
 assign app_tx_data_valid    = cmd_valid? app2_tx_data_valid      :app1_tx_data_valid    ;
 assign app_tx_data          = cmd_valid? app2_tx_data            :app1_tx_data     ;
 assign udp_data_length      = cmd_valid? udp2_data_length        :udp1_data_length    ;
 
+assign transfer_done      = tx_done | pic_done;
 
-wire transfer_done_1 ;
-wire transfer_done_2 ;
-assign transfer_done      = cmd_valid? transfer_done_2:transfer_done_1;
+wire                receive_busy_1;
+wire                receive_done_1;
+wire [3:0]          receive_status_1;
 
 // top状态信号
 wire [3:0]          top_state_code;
@@ -83,9 +104,17 @@ wire [3:0]          top_state_code;
 top your_top_inst(
     .clk                        (sys_clk),
     .rst_n                      (rst_n),
-    .key1                       (start_transfer),    // 直接使用start_transfer触发
+    .key1                       (start_transfer),    // 发送触发
+    .key2                       (start_receive),     // 接收触发
+    .finish                     (pic_done),
     
-    // UDP应用层接口
+    // SD卡接口
+    .sd_ncs                     (sd_ncs),
+    .sd_dclk                    (sd_dclk),
+    .sd_mosi                    (sd_mosi),
+    .sd_miso                    (sd_miso),
+    
+    // UDP应用层接口 — 发送
     .eth_app_tx_data_request    (app1_tx_data_request),
     .eth_app_tx_data_valid      (app1_tx_data_valid),
     .eth_app_tx_data            (app1_tx_data),
@@ -93,11 +122,14 @@ top your_top_inst(
     .eth_udp_tx_ready           (udp_tx_ready),
     .eth_app_tx_ack             (app_tx_ack),
     
-    // SD卡接口
-    .sd_ncs                     (sd_ncs),
-    .sd_dclk                    (sd_dclk),
-    .sd_mosi                    (sd_mosi),
-    .sd_miso                    (sd_miso)
+    // UDP以太网接口 - 接收
+    .eth_app_rx_data_valid      (app_rx_data_valid),        
+    .eth_app_rx_data            (app_rx_data),              
+    .eth_app_rx_data_length     (app_rx_data_length),       
+    .eth_app_rx_port_num        (app_rx_port_num),          
+    
+    // 接收状态输出
+    .receive_state_code         (top_receive_state_code)    
 );
 
 state_sender sender_cmd(
@@ -107,8 +139,8 @@ state_sender sender_cmd(
     
     // 交互接口
     .cmd_in          (cmd_in),         // 2位命令输入
-    .cmd_valid       (cmd_vaild),      // 命令有效信号
-    .tx_done         (transfer_done_2),        // 发送完成信号输出
+    .cmd_valid       (cmd_valid),      // 命令有效信号
+    .tx_done         (tx_done),        // 发送完成信号输出
     
     .app_rx_data_valid   (app_rx_data_valid),
     .app_rx_data         (app_rx_data),
@@ -163,9 +195,15 @@ ethernet_trans_control eth_control_inst(
 // 状态信号处理
 // ==============================
 
+
 // 状态信号转换
 assign transfer_busy = (top_state_code != 4'd0);  // 非空闲表示忙
 //assign transfer_done = (top_state_code == 4'd0);  // 空闲表示完成
 assign status_code = top_state_code;              // 透传状态码
+
+// 接收状态信号转换
+assign receive_busy = (top_receive_state_code != 4'd0 && top_receive_state_code != 4'd1);  // 非空闲和等待状态表示忙
+assign receive_done = (top_receive_state_code == 4'd4);  // 状态4表示接收完成
+assign receive_status = top_receive_state_code;          // 透传接收状态码
 
 endmodule

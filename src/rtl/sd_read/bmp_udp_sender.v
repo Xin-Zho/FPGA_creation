@@ -5,6 +5,8 @@ module bmp_udp_sender(
     input                       find,                   // 开始查找和传输BMP文件信号
     input                       sd_init_done,           // SD卡初始化完成标志
     output reg[3:0]             state_code,             // 状态指示编码
+    
+    output                      send_finish,
     // 状态编码说明：
     // 0: SD卡正在初始化
     // 1: 等待开始信号
@@ -52,6 +54,9 @@ reg[31:0]        file_len;           // BMP文件总长度
 reg[31:0]        width;              // BMP图像宽度
 reg[31:0]        bmp_len_cnt;        // BMP文件长度计数器
 reg              found;              // BMP文件找到标志
+
+reg             finish;
+assign  sender_finish = finish;
 
 // UDP传输相关寄存器
 reg [10:0]       buffer_wr_addr;     // 数据缓冲区写地址
@@ -191,6 +196,8 @@ begin
         case(state)
             S_IDLE:
             begin
+                finish <= 1'b0;
+                
                 state_code <= 4'd1;  // 状态码1: 等待开始信号
                 if(find == 1'b1)
                     state <= S_FIND;
@@ -334,6 +341,8 @@ begin
             S_END:
             begin
                 // 传输完成，返回空闲状态
+                finish <= 1'b1;
+                
                 state <= S_IDLE;
                 bmp_len_cnt <= 32'd0;
                 udp_tx_cnt <= 32'd0;
@@ -343,5 +352,7 @@ begin
                 state <= S_IDLE;
         endcase
 end
+
+
 
 endmodule
