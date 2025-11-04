@@ -1,13 +1,14 @@
+`define TEST_STATE
+
 module Mujica_top( 
     // 系统时钟和复位
     input  sys_clk,           // 50MHz系统时钟
     input  rst_n,        // 系统复位信号，低电平有效
     
     //转换信号
-    input wire start_power,      // 开始开机，高电平有效
-    input wire start_save,       // 开始存照片，高电平有效
-    input wire start_fetch,      // 开始读照片，高电平有效
-    input wire finish_fetch,     // 结束读照片，高电平有效
+    input wire start_power,      // 开始开机，低电平有效
+    input wire start_save,       // 开始存照片，低电平有效
+    input wire start_fetch,      // 开始读照片，低电平有效
     
     // PHY1 RGMII接口信号
     input               phy1_rgmii_rx_clk,   // RGMII接收时钟
@@ -17,7 +18,7 @@ module Mujica_top(
     output wire         phy1_rgmii_tx_ctl,   // RGMII发送控制
     output wire [3:0]   phy1_rgmii_tx_data,  // RGMII发送数据
     
-    output [2:0]        led,                  // LED状态指示
+    output [3:0]        led,                  // LED状态指示
     
     
     //开始更改
@@ -40,33 +41,40 @@ localparam SNAP_FETCH_WORK    = 3'b111;  // 执行读照片操作
            
 
 //==========================状态重置==========================
+// 状态寄存器
+reg [2:0] current_state;
+reg [2:0] next_state;
 
 // 重置
 always @(posedge sys_clk or negedge rst_n) begin
     if (!rst_n) begin
         current_state <= IDLE_STATUS;
     end else begin
-        current_state <= next_state;
+//        if (send_working)
+//            current_state <= current_state;
+//        else
+            current_state <= next_state;
     end
 end
 
 //==========================状态输入=========================
 //同步待机输入至时钟逻辑
 reg [1:0] input_state;  //待机输入暂存
+reg idle_flag;
 
-always@(posedge start_power,start_save,start_fetch,sys_clk or negedge rst_n )begin
+always@(posedge sys_clk or negedge rst_n )begin
     if(!rst_n )
     
         input_state <= 2'b00;
         
-    else if(current_state == IDLE_STATUS )begin
+    else if(idle_flag)begin
     
     //确保输入安全，优先级 power > save > read
-        if (start_power)
+        if (~start_power)
             input_state <= 2'b01;
-        else if (start_save && ~start_power)
+        else if (~start_save && start_power)
             input_state <= 2'b10;
-        else if (start_fetch && ~start_save && ~start_power)
+        else if (~start_fetch && start_save && start_power)
             input_state <= 2'b11;
        
     end        
@@ -77,15 +85,17 @@ end
 
 //同步读取输入至时钟逻辑
 reg return_idle;//读取输入暂存
+reg fetch_flag;
+reg idle_back;
 
-always@(posedge finish_fetch,sys_clk or negedge rst_n )begin
+always@(posedge sys_clk or negedge rst_n )begin
     if(!rst_n )
     
         return_idle <= 1'b0;
         
-    else if(current_state == SNAP_FETCH_WORK )begin
+    else if(current_state ==SNAP_FETCH_WORK)begin
   
-        if (finish_fetch && ~send_working)
+        if (~start_fetch && ~send_working)
             return_idle <= 1'b1;
          
     end       
@@ -95,21 +105,19 @@ always@(posedge finish_fetch,sys_clk or negedge rst_n )begin
 end
 
 reg change_pic;
-wire key1;
-assign key1 = change_pic |  eth_tx_pic_en;
  
- always@(posedge start_fetch,sys_clk or negedge rst_n )begin
+ always@(posedge sys_clk or negedge rst_n )begin
     if(!rst_n )
     
         change_pic <= 1'b0;
         
-    else if(current_state == SNAP_FETCH_WORK )begin
+    else if(fetch_flag)begin
     
-        if (send_finish)
+        if(send_working) 
             change_pic <= 1'b0;
-        else if(start_fetch)
+        else if(~start_save)
             change_pic <= 1'b1;
-         
+       
     end       
     else
         //非读取状态忽略所有输入
@@ -117,21 +125,23 @@ assign key1 = change_pic |  eth_tx_pic_en;
 end
 
 //=======================状态选择===========================
-
-// 状态寄存器
-reg [2:0] current_state;
-reg [2:0] next_state;
-
-
 // 状态机实现
-always @(posedge sys_clk,send_finish or negedge rst_n) begin    
+always @(posedge sys_clk or negedge rst_n) begin
+    if (!rst_n)begin
+        next_state <= IDLE_STATUS;
+        led_cmd <= 4'b0000;
+        fetch_flag <= 1'b0;
+        idle_flag <= 1'b0;
+    end
     //发送完成校验状态机
-    if(send_finish)begin
+    else if(send_finish)begin
     
         case (current_state)
         
             // 等待外部触发信号
             IDLE_STATUS: begin
+                led_cmd <= 4'b0001;
+                idle_flag <= (input_state == 2'b00) ;
                 
                 case(input_state)
                     2'b00:next_state <= IDLE_STATUS;
@@ -143,36 +153,56 @@ always @(posedge sys_clk,send_finish or negedge rst_n) begin
             end
             
             //开机工作流
-            POWER_CONTROL:
+            POWER_CONTROL:begin
+                led_cmd <= 4'b0010;  
                 next_state <= POWER_CONTROL_WORK;
-            POWER_CONTROL_WORK:
+            end
+            POWER_CONTROL_WORK:begin
+                led_cmd <= 4'b0101;  
                 next_state <= IDLE_STATUS;
+            end
             
             //拍照工作流
-            SNAP_SAVE:
+            SNAP_SAVE:begin
+                led_cmd <= 4'b0010;  
                 next_state <= SNAP_SAVE_WORK;
-            SNAP_SAVE_WORK:
+            end
+            SNAP_SAVE_WORK:begin
+                led_cmd <= 4'b0110;
                 next_state <= IDLE_STATUS;
+            end
             
             //读取工作流
-            SNAP_FETCH: 
+            SNAP_FETCH:begin
+                led_cmd <= 4'b0010;
                 next_state <= SNAP_FETCH_WORK;
+            end
             SNAP_FETCH_WORK: begin
                 // 等待读操作完成信号
-                if (return_idle) begin
+               if (return_idle) begin
+                    led_cmd <= 4'b0001;
+                    fetch_flag <= 1'b0; 
                     next_state <= IDLE_STATUS;
-                end else begin
+                end 
+                else if(change_pic) begin
+                    led_cmd <= 4'b0101;
+                    fetch_flag <= 1'b0; 
+                    next_state <= SNAP_FETCH_WORK;
+                end
+                else begin
+                    led_cmd <= 4'b0011;
+                    fetch_flag <= 1'b1; 
                     next_state <= SNAP_FETCH_WORK;
                 end
             end
             
-            default: next_state <= IDLE_STATUS;
-            
-        endcase
-    
-    
+      default: begin
+        led_cmd = 4'b0000;
+        next_state <= IDLE_STATUS;
+      end
+           
+    endcase
     end
-   
 end
     
 //=================管理发射状态=====================
@@ -196,6 +226,7 @@ always @(posedge sys_clk or negedge rst_n) begin
         case (current_state)
             // A状态：发送2bit状态给下位机
             IDLE_STATUS: begin
+                
                 eth_tx_data <= 2'b00;  // A: 00
                 eth_tx_en <= 1'b1;     // 使能发送
                 eth_tx_pic_en <= 1'b0; 
@@ -204,6 +235,7 @@ always @(posedge sys_clk or negedge rst_n) begin
             end
             
             POWER_CONTROL: begin
+                    
                 eth_tx_data <= 2'b01;  // A: 01
                 eth_tx_en <= 1'b1;     // 使能发送
                 eth_tx_pic_en <= 1'b0; 
@@ -212,6 +244,7 @@ always @(posedge sys_clk or negedge rst_n) begin
             end
             
             SNAP_SAVE: begin
+            
                 eth_tx_data <= 2'b10;  // A: 10
                 eth_tx_en <= 1'b1;     // 使能发送
                 eth_tx_pic_en <= 1'b0; 
@@ -220,6 +253,7 @@ always @(posedge sys_clk or negedge rst_n) begin
             end
             
             SNAP_FETCH: begin
+            
                 eth_tx_data <= 2'b11;  // A: 11
                 eth_tx_en <= 1'b1;     // 使能发送
                 eth_tx_pic_en <= 1'b0; 
@@ -229,6 +263,8 @@ always @(posedge sys_clk or negedge rst_n) begin
             
             // B状态：根据状态发送对应数据
             POWER_CONTROL_WORK: begin
+                
+            
                 eth_tx_pic_en <= 1'b1;     // 使能发送开机图片
                 eth_tx_en <= 1'b0;
                 
@@ -243,13 +279,12 @@ always @(posedge sys_clk or negedge rst_n) begin
             end
             
             SNAP_FETCH_WORK: begin
-            
                 if(change_pic)begin
                        // 使能发送传出照片
                     send_working <= 1'b1;
+                     
                 end 
-                
-                eth_tx_pic_en <= 1'b0;  
+                eth_tx_pic_en <= 1'b0;
                 eth_tx_en <= 1'b0;
                 
             end
@@ -298,6 +333,9 @@ wire transfer_busy;
 wire transfer_done;
 wire [3:0] status_code;
 
+wire key1;
+assign key1 = change_pic |  eth_tx_pic_en;
+
 bmp_transfer_wrapper bmp_wrapper_inst(
     // 系统接口
     .sys_clk                (sys_clk),
@@ -329,17 +367,92 @@ bmp_transfer_wrapper bmp_wrapper_inst(
 
 //封装结束
 
+//==================灯光===========================
+wire [3:0] led_ctl;
+reg  [3:0] led_cmd;
+assign led_ctl = led_cmd;
+
+led_control control_led(
+    
+    .sys_clk(sys_clk) ,                    //50mHz, system clock
+    .rst_n(rst_n)   ,                    //reset sign  ,1 then reset
+    .cntl(led_ctl)    ,                          //contrl sign ,decide use which kind of led
+    
+    .led(led)                            //led output
+);
 
 //记录输出状态
 reg  send_finish;   //发送状态管理器
+
+localparam FETCH_PREIOD = 24'd9_999_999; 
+reg [23:0] fetch_cnt;
+
+always @(posedge sys_clk or negedge rst_n )begin
+        if(!rst_n)
+            fetch_cnt <= 24'd0;
+        else if (pic_cnt < FETCH_PREIOD && fetch_flag)
+            fetch_cnt <= fetch_cnt + 1'b1;
+        else
+            fetch_cnt <= 24'd0;
+end
+
+`ifdef TEST_STATE
+
+    localparam PIC_PREIOD = 64'd999_999_999;
+    
+    reg [63:0] pic_cnt ;
+    
+    localparam CMD_PREIOD = 32'd99_999_999; 
+    
+    reg [31:0] cmd_cnt ;
+    
+    always @(posedge sys_clk or negedge rst_n )begin
+        if(!rst_n)
+            pic_cnt <= 64'd0;
+        else if (pic_cnt < PIC_PREIOD && eth_tx_pic_en)
+            pic_cnt <= pic_cnt + 1'b1;
+        else
+            pic_cnt <= 64'd0;
+    end
+    
+    always @(posedge sys_clk or negedge rst_n )begin
+        if(!rst_n)
+            cmd_cnt <= 32'd0;
+        else if (cmd_cnt < CMD_PREIOD && eth_tx_en )
+            cmd_cnt <= cmd_cnt + 1'b1;
+        else
+            cmd_cnt <= 32'd0;
+    end
+    
+    always @(posedge sys_clk or negedge rst_n )begin
+        if(!rst_n)
+            send_finish <= 1'b0;
+        else if (cmd_cnt == CMD_PREIOD)
+            send_finish <= 1'b1;
+        else if (pic_cnt == PIC_PREIOD)
+            send_finish <= 1'b1;
+        else if (fetch_cnt == FETCH_PREIOD)
+            send_finish <= 1'b1;
+        else
+            send_finish <= 1'b0;
+    end
+
+`else
 
 always @(posedge sys_clk or negedge rst_n)begin
     if (!rst_n)
         send_finish <= 1'b0;
     else if(transfer_done == 1'b1)
         send_finish <= 1'b1;
+   else if (fetch_cnt == FETCH_PREIOD)
+        send_finish <= 1'b1;
     else if(send_finish == 1'b1)
         send_finish <= 1'b0;
+    
 end
+
+`endif
+
+
                    
 endmodule
