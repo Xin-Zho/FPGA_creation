@@ -1,4 +1,4 @@
-`define TEST_STATE
+//`define TEST_STATE
 
 module Mujica_top( 
     // 系统时钟和复位
@@ -53,7 +53,7 @@ always @(posedge sys_clk or negedge rst_n) begin
 //        if (send_working)
 //            current_state <= current_state;
 //        else
-            current_state <= next_state;
+        current_state <= next_state;
     end
 end
 
@@ -63,27 +63,42 @@ reg [1:0] input_state;  //待机输入暂存
 reg idle_flag;
 
 always@(posedge sys_clk or negedge rst_n )begin
-    if(!rst_n )
+    if(!rst_n )begin
     
         input_state <= 2'b00;
-        
+//        led_debug <= 4'b0000;
+    end
     else if(idle_flag)begin
     
     //确保输入安全，优先级 power > save > read
-        if (~start_power)
+        if (~start_power)begin
             input_state <= 2'b01;
-        else if (~start_save && start_power)
+//            led_debug <= 4'b0001;
+        end
+        else if (~start_save && start_power)begin
+//            led_debug <= 4'b0010;
             input_state <= 2'b10;
-        else if (~start_fetch && start_save && start_power)
+        end
+        else if (~start_fetch && start_save && start_power)begin
             input_state <= 2'b11;
+//            led_debug <= 4'b0011;
+        end
+        else begin
+            input_state <= input_state;
+//            led_debug <= led_debug;
+        end
        
     end        
-    else
+    else begin
         //非待机状态忽略所有输入
         input_state <= 2'b00;
+       // led_debug <= 4'b0000;
+    end
 end
 
 //同步读取输入至时钟逻辑
+reg  send_working;
+
 reg return_idle;//读取输入暂存
 reg fetch_flag;
 reg idle_back;
@@ -93,7 +108,7 @@ always@(posedge sys_clk or negedge rst_n )begin
     
         return_idle <= 1'b0;
         
-    else if(current_state ==SNAP_FETCH_WORK)begin
+    else if(fetch_flag)begin
   
         if (~start_fetch && ~send_working)
             return_idle <= 1'b1;
@@ -117,6 +132,8 @@ reg change_pic;
             change_pic <= 1'b0;
         else if(~start_save)
             change_pic <= 1'b1;
+        else
+            change_pic <= change_pic;
        
     end       
     else
@@ -144,12 +161,24 @@ always @(posedge sys_clk or negedge rst_n) begin
                 idle_flag <= (input_state == 2'b00) ;
                 
                 case(input_state)
-                    2'b00:next_state <= IDLE_STATUS;
-                    2'b01:next_state <= POWER_CONTROL;
-                    2'b10:next_state <= SNAP_SAVE;
-                    2'b11:next_state <= SNAP_FETCH;
+                    2'b00:begin
+//                        led_cmd <= 4'b0000;
+                        next_state <= IDLE_STATUS;
+                        end
+                    2'b01:begin
+//                        led_cmd <= 4'b0001;
+                        next_state <= POWER_CONTROL;
+                        end
+                    2'b10:begin
+//                        led_cmd <= 4'b0001;
+                        next_state <= SNAP_SAVE;
+                        end
+                    2'b11:begin
+//                        led_cmd <= 4'b0001;
+                        next_state <= SNAP_FETCH;
+                        end
                 endcase
-                
+                      
             end
             
             //开机工作流
@@ -158,7 +187,8 @@ always @(posedge sys_clk or negedge rst_n) begin
                 next_state <= POWER_CONTROL_WORK;
             end
             POWER_CONTROL_WORK:begin
-                led_cmd <= 4'b0101;  
+                led_cmd <= 4'b0101; 
+//                next_state <= POWER_CONTROL_WORK;
                 next_state <= IDLE_STATUS;
             end
             
@@ -196,13 +226,18 @@ always @(posedge sys_clk or negedge rst_n) begin
                 end
             end
             
-      default: begin
-        led_cmd = 4'b0000;
-        next_state <= IDLE_STATUS;
+        default: begin
+            led_cmd = 4'b0001;
+            next_state <= IDLE_STATUS;
       end
            
     endcase
+    
     end
+    else begin
+       next_state <= next_state;
+       led_cmd <= led_cmd;
+    end 
 end
     
 //=================管理发射状态=====================
@@ -211,7 +246,7 @@ reg [1:0] eth_tx_data; // 以太网发送数
 reg eth_tx_en;         // 以太网发送cmd使能 
 reg eth_tx_pic_en;     // 以太网发送pic使能
 
-reg  send_working;
+
     
 // 以太网发送控制逻辑
 always @(posedge sys_clk or negedge rst_n) begin
@@ -238,6 +273,7 @@ always @(posedge sys_clk or negedge rst_n) begin
                     
                 eth_tx_data <= 2'b01;  // A: 01
                 eth_tx_en <= 1'b1;     // 使能发送
+                //eth_tx_en <= 1'b0;
                 eth_tx_pic_en <= 1'b0; 
                 
                 send_working <= 1'b1;
@@ -309,8 +345,8 @@ end
 
 //cmd
 //输入状态
-wire    cmd_vaild  ;
-assign  cmd_vaild = eth_tx_en;
+wire    cmd_valid  ;
+assign  cmd_valid = eth_tx_en;
 
 wire [1:0]  cmd_in ;
 assign      cmd_in = eth_tx_data;
@@ -370,7 +406,11 @@ bmp_transfer_wrapper bmp_wrapper_inst(
 //==================灯光===========================
 wire [3:0] led_ctl;
 reg  [3:0] led_cmd;
+reg  [3:0] led_debug;
+
 assign led_ctl = led_cmd;
+
+//assign led_ctl = led_debug;
 
 led_control control_led(
     
@@ -390,7 +430,7 @@ reg [23:0] fetch_cnt;
 always @(posedge sys_clk or negedge rst_n )begin
         if(!rst_n)
             fetch_cnt <= 24'd0;
-        else if (pic_cnt < FETCH_PREIOD && fetch_flag)
+        else if (fetch_cnt < FETCH_PREIOD && fetch_flag)
             fetch_cnt <= fetch_cnt + 1'b1;
         else
             fetch_cnt <= 24'd0;
@@ -439,20 +479,49 @@ end
 
 `else
 
-always @(posedge sys_clk or negedge rst_n)begin
-    if (!rst_n)
-        send_finish <= 1'b0;
-    else if(transfer_done == 1'b1)
-        send_finish <= 1'b1;
-   else if (fetch_cnt == FETCH_PREIOD)
-        send_finish <= 1'b1;
-    else if(send_finish == 1'b1)
-        send_finish <= 1'b0;
+    reg [1:0] send_cnt;
+    reg [1:0] send_finish_cnt;
     
-end
+    always @(posedge sys_clk or negedge rst_n)begin
+        if (!rst_n) begin
+            send_finish <= 1'b0;
+            send_cnt <= 2'b00;
+            send_finish_cnt <= 2'b0;
+        end
+        else if(transfer_done == 1'b1)begin
+            send_finish <= 1'b1;
+            send_finish_cnt <= send_finish_cnt + 1'b1;
+        end
+        else if (fetch_cnt == FETCH_PREIOD)begin
+            send_finish <= 1'b1;
+        end
+        else if (send_working)begin
+            send_finish <= 1'b0;
+        end
+        else if (send_finish) begin
+            send_cnt <= send_cnt +1'b1 ;           
+            if(send_cnt == 2'b11)begin
+                send_cnt <= 2'b0;
+                send_finish <= 1'b0;
+            end
+        end
+        else
+            send_finish <= send_finish;
+        
+    end
+    
+    always@(posedge sys_clk or negedge rst_n)begin
+        if(!rst_n)
+            led_debug <= 4'b0000;
+        else if(send_finish_cnt == 2'b11)begin
+            
+            led_debug <= 4'b0001;
+        end
+        else
+            led_debug <= led_debug;
+    end
 
 `endif
 
-
                    
-endmodule
+endmodule 

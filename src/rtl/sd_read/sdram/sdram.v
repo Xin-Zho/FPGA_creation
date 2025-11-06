@@ -7,7 +7,7 @@
 
 `define DEBUG
 
-`include "./src/sdram/enc_file/global_def.v"
+`include "./src/rtl/sd_read/sdram/enc_file/global_def.v"
 
 module sdram(
     `ifdef SIMULATION

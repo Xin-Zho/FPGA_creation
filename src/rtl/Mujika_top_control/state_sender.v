@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+//`timescale 1ns / 1ps
 
 module state_sender(
     // 系统接口
@@ -8,7 +8,7 @@ module state_sender(
     // 交互
     input  [1:0]    cmd_in,         // 2位命令输入
     input           cmd_valid,      // 命令有效信号（新增）
-    output reg      tx_done,         // 发送完成信号
+    output reg      tx_done,        // 发送完成信号
     
     input               app_rx_data_valid,     // 应用层接收数据有效
     input [7:0]         app_rx_data,           // 应用层接收数据
@@ -54,15 +54,17 @@ assign  udp_data_length = udp_data_length_reg;
 
 
 // 以太网传输模块接口信号
-wire app_rx_data_valid;
-wire [7:0] app_rx_data;
-wire [15:0] app_rx_data_length;
-wire [15:0] app_rx_port_num;
-
-wire udp_tx_ready;
-wire app_tx_ack;
 
 // ========================= 命令发送状态机 =========================
+// state_sender 模块中新增延时计数器
+reg [15:0] ack_timeout_cnt;  // 8位计数器，最大延时255个时钟周期（足够UDP发送1字节）
+localparam ACK_TIMEOUT_MAX = 16'd60000;  // 1.2ms超时（可根据实际调整）
+
+reg [15:0] udp_timeout_cnt;  // 8位计数器，最大延时255个时钟周期（足够UDP发送1字节）
+localparam UDP_TIMEOUT_MAX = 16'd60000;  // 1.2ms超时（可根据实际调整）
+
+reg [2:0] data_hold_cnt;
+
 always @(posedge clk_50 or negedge sys_rst_n) begin
     if (!sys_rst_n) begin
         state <= IDLE;
@@ -75,12 +77,14 @@ always @(posedge clk_50 or negedge sys_rst_n) begin
         tx_done <= 1'b0;
     end else begin
         case (state)
+        
             IDLE: begin
                 tx_done <= 1'b0;
                 app_tx_data_request_reg <= 1'b0;
                 app_tx_data_valid_reg <= 1'b0;
+                ack_timeout_cnt <= 16'd0;  // 清零超时计数器
                 
-                // 检测到有效命令输入
+                // 检测到新的有效命令（边沿检测，避免重复触发）
                 if (cmd_valid && !cmd_valid_reg) begin
                     cmd_reg <= cmd_in;
                     cmd_valid_reg <= 1'b1;
@@ -89,39 +93,51 @@ always @(posedge clk_50 or negedge sys_rst_n) begin
             end
             
             REQUEST: begin
-                // 等待UDP发送就绪
-                if (udp_tx_ready) begin
-                    app_tx_data_request_reg <= 1'b1;
-                    state <= SEND_CMD;
+                // 超时计数器累加
+                udp_timeout_cnt <= udp_timeout_cnt + 1'b1;
+                
+                // 等待UDP发送就绪，就绪后发起数据请求
+                if (udp_tx_ready || udp_timeout_cnt >= UDP_TIMEOUT_MAX) begin
+                    udp_timeout_cnt <= 16'b0;
+                    app_tx_data_request_reg <= 1'b1;  // 向应用层请求发送数据
+                    state <= SEND_CMD;                // 直接进入发送命令状态
                 end
             end
             
             SEND_CMD: begin
-                // 发送命令数据
-                if (app_tx_ack) begin
-                    app_tx_data_request_reg <= 1'b0;
-                    app_tx_data_valid_reg <= 1'b1;
-                    // 将2位命令转换为8位数据（低2位有效，高6位补0）
-                    app_tx_data_reg <= {6'b000000, cmd_reg};
+                app_tx_data_valid_reg <= 1'b1;
+                app_tx_data_reg <= {6'b000000, cmd_reg};
+                app_tx_data_request_reg <= 1'b0;
+                
+                // 保持数据有效至少几个周期
+                if (data_hold_cnt >= 3'd3) begin
                     state <= WAIT_ACK;
+                end else begin
+                    data_hold_cnt <= data_hold_cnt + 1'b1;
                 end
-            end
+           end
             
             WAIT_ACK: begin
-                // 数据已经发送，等待传输完成
-                app_tx_data_valid_reg <= 1'b0;
+                // 超时计数器累加
+                ack_timeout_cnt <= ack_timeout_cnt + 1'b1;
                 
-                // 检查是否发送完成
-                if (udp_tx_ready) begin
-                    state <= DONE;
+                
+                // 两种情况退出WAIT_ACK：1)收到ack 2)超时
+                if (app_tx_ack || ack_timeout_cnt >= ACK_TIMEOUT_MAX) begin
+                    app_tx_data_valid_reg <= 1'b0;  // 关闭数据有效信号
+                    ack_timeout_cnt <= 16'd0;       // 清零超时计数器
+                     state <= DONE;                  // 进入完成状态
                 end
+                
+               
             end
             
             DONE: begin
-                tx_done <= 1'b1;
-                cmd_valid_reg <= 1'b0;
-                // 短暂保持完成信号后返回空闲
-                #5 state <= IDLE;
+                tx_done <= 1'b1;             // 置位发送完成信号
+                            
+                cmd_valid_reg <= 1'b0;       // 清除命令有效标记
+                state <= IDLE;               // 返回空闲状态，等待下一个命令
+            
             end
             
             default: state <= IDLE;
