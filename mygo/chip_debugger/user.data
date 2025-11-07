@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE chip_watcher_data>
+<cwc_data version="1.0">
+    <instance name="auto_created_cwc1">
+        <watcher_nodes>
+            <net name="u_ov5640_dri/u_cmos_capture_data/cam_pclk_dbg" original_name="u_ov5640_dri/u_cmos_capture_data/cam_pclk_dbg" synchronizable="true" color="#00ff00"/>
+            <net name="u_ov5640_dri/u_cmos_capture_data/cam_vsync_dbg" original_name="u_ov5640_dri/u_cmos_capture_data/cam_vsync_dbg" synchronizable="true" color="#00ffff"/>
+        </watcher_nodes>
+        <trigger_config>
+            <net name="u_ov5640_dri/u_cmos_capture_data/cam_pclk_dbg" original_name="u_ov5640_dri/u_cmos_capture_data/cam_pclk_dbg"/>
+            <net name="u_ov5640_dri/u_cmos_capture_data/cam_vsync_dbg" original_name="u_ov5640_dri/u_cmos_capture_data/cam_vsync_dbg"/>
+        </trigger_config>
+        <capture_control_config>
+            <net name="u_ov5640_dri/u_cmos_capture_data/cam_pclk_dbg" original_name="u_ov5640_dri/u_cmos_capture_data/cam_pclk_dbg"/>
+            <net name="u_ov5640_dri/u_cmos_capture_data/cam_vsync_dbg" original_name="u_ov5640_dri/u_cmos_capture_data/cam_vsync_dbg"/>
+        </capture_control_config>
+    </instance>
+</cwc_data>
