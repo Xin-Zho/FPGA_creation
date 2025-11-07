@@ -56,7 +56,7 @@ reg[31:0]        bmp_len_cnt;        // BMP文件长度计数器
 reg              found;              // BMP文件找到标志
 
 reg             finish;
-assign  sender_finish = finish;
+assign  send_finish = finish;
 
 // UDP传输相关寄存器
 reg [10:0]       buffer_wr_addr;     // 数据缓冲区写地址

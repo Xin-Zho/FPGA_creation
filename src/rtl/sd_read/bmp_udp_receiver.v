@@ -125,7 +125,7 @@ begin
         // 复位所有控制信号
         state <= S_IDLE;
         sd_sec_write <= 1'b0;
-        sd_sec_write_addr <= 32'd0;
+        sd_sec_write_addr <= 32'd21000;
         sd_sec_write_data <= 8'd0;
         state_code <= 4'd0;
         
@@ -166,7 +166,7 @@ begin
                 if(find == 1'b1)
                 begin
                     state <= S_WAIT_RX;
-                    sd_sec_write_addr <= 32'd0;
+                    sd_sec_write_addr <= 32'd21000;
                 end
             end
             

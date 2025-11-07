@@ -90,14 +90,14 @@ assign app_tx_data_valid    = cmd_valid? app2_tx_data_valid      :app1_tx_data_v
 assign app_tx_data          = cmd_valid? app2_tx_data            :app1_tx_data     ;
 assign udp_data_length      = cmd_valid? udp2_data_length        :udp1_data_length    ;
 
-assign transfer_done      = cmd_valid? transfer_done_2:transfer_done_1;
+assign transfer_done      = transfer_done_2 | transfer_done_1;
 
 wire                receive_busy_1;
 wire                receive_done_1;
 wire [3:0]          receive_status_1;
 
 // top状态信号
-wire [3:0]          top_state_code;
+//wire [3:0]          top_state_code;
 
 // ==============================
 // 完整系统实例化

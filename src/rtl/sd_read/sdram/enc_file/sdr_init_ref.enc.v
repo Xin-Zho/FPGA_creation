@@ -8,7 +8,7 @@
 
 `define signle_bit 0
 
-`include "./src/rtl/sd_read/sdram/enc_file/global_def.v"
+`include "./src/sdram/enc_file/global_def.v"
 
 module sdr_init_ref #( parameter self_refresh_open=1
 			)
